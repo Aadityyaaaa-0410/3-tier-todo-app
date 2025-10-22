@@ -1,0 +1,114 @@
+Good question — this is a common concern when using API Gateway directly from a frontend (like your JS).
+
+Let’s go step-by-step to understand why the URL is visible and how to hide or protect it.
+
+🧩 Why You See the API Gateway URL
+
+Because your frontend JavaScript is making direct requests to:
+
+fetch('https://34v00hq4sd.execute-api.us-east-1.amazonaws.com/deploy/prod')
+
+
+anyone can open DevTools → Network tab and see that URL — it’s unavoidable when making direct client-side requests. The browser must know the endpoint to talk to it.
+
+So you can’t fully hide the API Gateway URL from the browser.
+But you can protect or mask it in several practical ways.
+
+✅ Best Solutions to “Hide” or Protect the API Gateway URL
+1. 🔁 Use a Custom Domain with API Gateway
+
+This replaces the AWS default URL with your own domain.
+
+Steps:
+
+Buy or use a domain (e.g. api.mywebsite.com).
+
+In API Gateway → Custom Domain Names, create one (e.g. api.mywebsite.com).
+
+Add an ACM SSL certificate for it (in us-east-1 for CloudFront).
+
+Map the base path / to your deployed API.
+
+Update your frontend:
+
+const API_BASE_URL = 'https://api.mywebsite.com';
+
+
+🔒 Benefit: users don’t see the AWS URL — it looks like part of your site.
+
+2. 🧠 Add an NGINX Reverse Proxy (Recommended for Web Apps)
+
+If your website is hosted on EC2, Lightsail, or any custom server, you can proxy API calls through your own domain.
+
+Example NGINX config:
+
+server {
+    listen 80;
+    server_name mywebsite.com;
+
+    location /api/ {
+        proxy_pass https://34v00hq4sd.execute-api.us-east-1.amazonaws.com/deploy/prod/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        add_header Access-Control-Allow-Origin *;
+    }
+}
+
+
+Now your frontend calls:
+
+const API_BASE_URL = '/api';
+
+
+NGINX will forward the request to the real API Gateway URL behind the scenes.
+👀 When users inspect the site, they’ll only see /api/..., not the AWS endpoint.
+
+3. 🔐 Add Authorization (so even if someone knows the URL, they can’t misuse it)
+
+Protect your API Gateway using one of:
+
+Cognito Authorizer (JWT-based)
+
+IAM Authorization
+
+Custom Lambda Authorizer
+→ validates tokens or keys before letting requests through
+
+This ensures that:
+
+Only authenticated users (with valid tokens) can call your API.
+
+Even if someone copies your API URL, it won’t work.
+
+4. ☁️ Use CloudFront in front of API Gateway (Advanced Setup)
+
+You can also create a CloudFront distribution:
+
+Origin: API Gateway URL
+
+Behavior path: /api/*
+
+Domain: dxyz.cloudfront.net (or your custom one)
+
+Optionally add caching or Web Application Firewall (AWS WAF)
+
+Then point your frontend to CloudFront:
+
+const API_BASE_URL = 'https://api.mywebsite.com/api';
+
+
+This hides the original API Gateway URL and adds DDoS/WAF protection.
+
+5. 🚫 Never expose sensitive keys or credentials in frontend
+
+If your API requires API keys, never store them in the JS. Instead:
+
+Use a backend proxy to inject the key (via environment variable)
+
+Or use signed requests (IAM/Cognito)
+
+⚙️ TL;DR (Most Practical Way)
+Goal	Recommended Setup
+Hide AWS URL	Custom domain or NGINX proxy
+Add security	JWT / Cognito / Lambda authorizer
+Add performance & protection	CloudFront + WAF
